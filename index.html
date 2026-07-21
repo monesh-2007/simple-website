@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Food Ledger</title>
+<style>
+  :root{
+    --paper:#F6F1E7;
+    --paper-dim:#EDE6D6;
+    --ink:#22302A;
+    --ink-soft:#5B6960;
+    --gold:#C08A28;
+    --credit:#3F7A5C;
+    --deficit:#A23E3E;
+    --rule:#D8CFB8;
+    --white:#FFFDF8;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:'Libre Franklin', 'Segoe UI', sans-serif;
+    min-height:100vh;
+    display:flex; justify-content:center;
+  }
+  @font-face{
+    font-family:'Courier Prime';
+    src:local('Courier New');
+  }
+  .app{
+    width:100%; max-width:460px; min-height:100vh;
+    background:var(--paper);
+    display:flex; flex-direction:column;
+    position:relative;
+  }
+
+  /* Header / stamp card */
+  header{
+    padding:22px 20px 16px;
+    border-bottom:2px solid var(--ink);
+    background:
+      repeating-linear-gradient(135deg, rgba(34,48,42,0.03) 0 2px, transparent 2px 8px),
+      var(--paper);
+  }
+  .brand{
+    font-size:11px; letter-spacing:3px; text-transform:uppercase;
+    color:var(--ink-soft); margin-bottom:4px; font-weight:600;
+  }
+  .brand span{color:var(--gold);}
+  h1{
+    margin:0 0 14px; font-size:22px; font-weight:800; letter-spacing:0.3px;
+  }
+  .balance-row{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    border:2px dashed var(--ink); border-radius:6px; padding:14px 16px;
+    background:var(--white); position:relative;
+  }
+  .balance-label{font-size:11px; text-transform:uppercase; letter-spacing:2px; color:var(--ink-soft); margin-bottom:6px;}
+  .balance-amt{
+    font-family:'Courier Prime', 'Courier New', monospace; font-size:30px; font-weight:700;
+  }
+  .balance-amt.neg{color:var(--deficit);}
+  .balance-amt.pos{color:var(--ink);}
+  .stamp{
+    position:absolute; top:-10px; right:-8px;
+    font-size:9px; letter-spacing:1px; text-transform:uppercase;
+    border:1.5px solid var(--gold); color:var(--gold);
+    padding:3px 7px; border-radius:3px; transform:rotate(8deg);
+    background:var(--paper); font-weight:700;
+  }
+  .sub-stats{
+    display:flex; gap:10px; margin-top:10px; font-family:'Courier Prime','Courier New',monospace;
+  }
+  .sub-stat{flex:1; font-size:12px; color:var(--ink-soft);}
+  .sub-stat b{display:block; font-size:15px; color:var(--ink); font-weight:700;}
+  .sub-stat.credit b{color:var(--credit);}
+  .sub-stat.deficit b{color:var(--deficit);}
+
+  /* Month nav */
+  .month-nav{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 20px 6px;
+  }
+  .month-nav button{
+    background:none; border:none; font-size:18px; color:var(--ink);
+    width:34px; height:34px; border-radius:50%; cursor:pointer;
+  }
+  .month-nav button:active{background:var(--paper-dim);}
+  .month-title{font-weight:700; font-size:15px; letter-spacing:0.5px;}
+
+  /* Calendar */
+  .cal-wrap{padding:6px 14px 10px;}
+  .weekday-row{display:grid; grid-template-columns:repeat(7,1fr); margin-bottom:4px;}
+  .weekday-row span{
+    text-align:center; font-size:10px; color:var(--ink-soft); text-transform:uppercase; letter-spacing:1px;
+  }
+  .grid{display:grid; grid-template-columns:repeat(7,1fr); gap:4px;}
+  .day{
+    aspect-ratio:1/1; border-radius:5px; border:1px solid var(--rule);
+    background:var(--white); display:flex; flex-direction:column;
+    align-items:center; justify-content:center; position:relative;
+    cursor:pointer; padding:2px;
+  }
+  .day.empty{border:none; background:none; cursor:default;}
+  .day .num{font-size:12px; font-weight:600; color:var(--ink);}
+  .day .amt{
+    font-family:'Courier Prime','Courier New',monospace; font-size:9px; font-weight:700;
+    color:var(--deficit); margin-top:2px;
+  }
+  .day.today{border:2px solid var(--gold);}
+  .day.has-spend{background:#FBF1E4;}
+  .day:active{background:var(--paper-dim);}
+
+  /* Action buttons */
+  .actions{
+    display:flex; gap:10px; padding:14px 20px 10px; margin-top:auto;
+  }
+  .btn{
+    flex:1; padding:13px 10px; border-radius:6px; border:none;
+    font-weight:700; font-size:13px; letter-spacing:0.3px; cursor:pointer;
+    text-transform:uppercase;
+  }
+  .btn.deposit{background:var(--credit); color:var(--white);}
+  .btn.expense{background:var(--deficit); color:var(--white);}
+  .btn.reset{background:transparent; color:var(--ink-soft); border:1px solid var(--rule);}
+  .btn:active{opacity:0.8;}
+
+  .hint{font-size:11px; color:var(--ink-soft); text-align:center; padding:0 20px 18px;}
+
+  /* Modal / sheet */
+  .overlay{
+    position:fixed; inset:0; background:rgba(34,48,42,0.45); display:none;
+    align-items:flex-end; justify-content:center; z-index:50;
+  }
+  .overlay.open{display:flex;}
+  .sheet{
+    width:100%; max-width:460px; background:var(--paper);
+    border-radius:16px 16px 0 0; padding:20px 20px 26px;
+    border-top:2px solid var(--ink);
+    max-height:82vh; overflow-y:auto;
+  }
+  .sheet-title{font-size:16px; font-weight:800; margin-bottom:2px;}
+  .sheet-date{font-size:12px; color:var(--ink-soft); margin-bottom:14px;}
+  .field{margin-bottom:12px;}
+  .field label{font-size:11px; text-transform:uppercase; letter-spacing:1px; color:var(--ink-soft); display:block; margin-bottom:5px;}
+  .field input{
+    width:100%; padding:11px 12px; border:1.5px solid var(--rule); border-radius:6px;
+    font-size:15px; background:var(--white); color:var(--ink); font-family:inherit;
+  }
+  .field input:focus{outline:none; border-color:var(--gold);}
+  .row-btns{display:flex; gap:10px; margin-top:14px;}
+  .row-btns .btn.primary{background:var(--ink); color:var(--white);}
+  .row-btns .btn.cancel{background:transparent; border:1px solid var(--rule); color:var(--ink-soft);}
+
+  .entry-list{margin-top:6px;}
+  .entry{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:10px 0; border-bottom:1px solid var(--rule);
+  }
+  .entry-note{font-size:13px; color:var(--ink);}
+  .entry-note small{display:block; color:var(--ink-soft); font-size:10px; margin-top:2px;}
+  .entry-amt{font-family:'Courier Prime','Courier New',monospace; font-weight:700; color:var(--deficit); font-size:14px;}
+  .entry-del{background:none; border:none; color:var(--ink-soft); font-size:16px; margin-left:10px; cursor:pointer; padding:2px 6px;}
+  .empty-msg{font-size:12px; color:var(--ink-soft); text-align:center; padding:14px 0;}
+  .loading{padding:40px; text-align:center; color:var(--ink-soft); font-size:13px;}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="loading" id="loadingMsg">Opening the ledger…</div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet" id="sheetContent"></div>
+</div>
+
+<script>
+const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const WEEKDAYS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+const STORAGE_KEY = "food-ledger-data";
+
+let ledger = { deposits: [], expenses: [] };
+let view = { year: new Date().getFullYear(), month: new Date().getMonth() };
+let storageReady = false;
+
+function fmt(n){
+  const sign = n < 0 ? "-" : "";
+  return sign + "₹" + Math.abs(n).toLocaleString('en-IN', {minimumFractionDigits:0, maximumFractionDigits:2});
+}
+function todayStr(){
+  const d = new Date();
+  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function dateKey(y,m,d){
+  return y+"-"+String(m+1).padStart(2,"0")+"-"+String(d).padStart(2,"0");
+}
+
+async function loadLedger(){
+  try{
+    const res = await window.storage.get(STORAGE_KEY, false);
+    if(res && res.value){
+      ledger = JSON.parse(res.value);
+    }
+  }catch(e){
+    ledger = { deposits: [], expenses: [] };
+  }
+  storageReady = true;
+}
+
+async function saveLedger(){
+  try{
+    await window.storage.set(STORAGE_KEY, JSON.stringify(ledger), false);
+  }catch(e){
+    console.error("Could not save", e);
+  }
+}
+
+function totals(){
+  const totalDeposit = ledger.deposits.reduce((s,d)=>s+d.amount,0);
+  const totalSpent = ledger.expenses.reduce((s,e)=>s+e.amount,0);
+  return { totalDeposit, totalSpent, balance: totalDeposit - totalSpent };
+}
+
+function spendForDate(key){
+  return ledger.expenses.filter(e=>e.date===key).reduce((s,e)=>s+e.amount,0);
+}
+
+function render(){
+  const {totalDeposit, totalSpent, balance} = totals();
+  const y = view.year, m = view.month;
+  const firstDay = new Date(y,m,1).getDay();
+  const daysInMonth = new Date(y,m+1,0).getDate();
+  const tKey = todayStr();
+
+  let cells = "";
+  for(let i=0;i<firstDay;i++){ cells += `<div class="day empty"></div>`; }
+  for(let d=1; d<=daysInMonth; d++){
+    const key = dateKey(y,m,d);
+    const spend = spendForDate(key);
+    const isToday = key === tKey;
+    cells += `
+      <div class="day ${spend>0?'has-spend':''} ${isToday?'today':''}" onclick="openDay('${key}')">
+        <span class="num">${d}</span>
+        ${spend>0 ? `<span class="amt">-${fmt(spend).replace('₹','')}</span>` : ""}
+      </div>`;
+  }
+
+  const weekdayRow = WEEKDAYS.map(w=>`<span>${w}</span>`).join("");
+
+  document.getElementById("app").innerHTML = `
+    <header>
+      <div class="brand">Food <span>Ledger</span></div>
+      <h1>Track what you spend, day by day</h1>
+      <div class="balance-row">
+        <div>
+          <div class="balance-label">Remaining balance</div>
+          <div class="balance-amt ${balance<0?'neg':'pos'}">${fmt(balance)}</div>
+        </div>
+        <div class="stamp">${balance<0?'Overspent':'In credit'}</div>
+      </div>
+      <div class="sub-stats">
+        <div class="sub-stat credit"><b>${fmt(totalDeposit)}</b>Deposited</div>
+        <div class="sub-stat deficit"><b>${fmt(totalSpent)}</b>Spent</div>
+      </div>
+    </header>
+
+    <div class="month-nav">
+      <button onclick="changeMonth(-1)">‹</button>
+      <div class="month-title">${MONTHS[m]} ${y}</div>
+      <button onclick="changeMonth(1)">›</button>
+    </div>
+
+    <div class="cal-wrap">
+      <div class="weekday-row">${weekdayRow}</div>
+      <div class="grid">${cells}</div>
+    </div>
+
+    <div class="actions">
+      <button class="btn deposit" onclick="openDeposit()">+ Add deposit</button>
+      <button class="btn expense" onclick="openExpense()">− Add expense</button>
+    </div>
+    <div class="actions" style="padding-top:0;">
+      <button class="btn reset" onclick="openBackup()">Backup / Restore</button>
+      <button class="btn reset" onclick="confirmReset()">Reset all data</button>
+    </div>
+    <div class="hint">Tip: you can also tap any date on the calendar to log an expense for that day.</div>
+  `;
+}
+
+function changeMonth(delta){
+  view.month += delta;
+  if(view.month<0){ view.month=11; view.year--; }
+  if(view.month>11){ view.month=0; view.year++; }
+  render();
+}
+
+function openOverlay(html){
+  document.getElementById("sheetContent").innerHTML = html;
+  document.getElementById("overlay").classList.add("open");
+}
+function closeOverlay(){
+  document.getElementById("overlay").classList.remove("open");
+}
+
+function openDeposit(){
+  openOverlay(`
+    <div class="sheet-title">Add a deposit</div>
+    <div class="sheet-date">Top up the balance you'll spend from</div>
+    <div class="field">
+      <label>Amount</label>
+      <input type="number" id="depAmt" placeholder="e.g. 3000" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="depDate" value="${todayStr()}">
+    </div>
+    <div class="field">
+      <label>Note (optional)</label>
+      <input type="text" id="depNote" placeholder="e.g. Monthly top-up">
+    </div>
+    <div class="row-btns">
+      <button class="btn cancel" onclick="closeOverlay()">Cancel</button>
+      <button class="btn primary" onclick="saveDeposit()">Save deposit</button>
+    </div>
+  `);
+}
+
+async function saveDeposit(){
+  const amt = parseFloat(document.getElementById("depAmt").value);
+  const date = document.getElementById("depDate").value || todayStr();
+  const note = document.getElementById("depNote").value.trim();
+  if(!amt || amt<=0){ alert("Enter an amount greater than 0."); return; }
+  ledger.deposits.push({ id: Date.now().toString(), amount: amt, date, note });
+  await saveLedger();
+  closeOverlay();
+  render();
+}
+
+function openExpense(){
+  openOverlay(`
+    <div class="sheet-title">Add an expense</div>
+    <div class="sheet-date">This will be deducted from your balance</div>
+    <div class="field">
+      <label>Amount</label>
+      <input type="number" id="expDirectAmt" placeholder="e.g. 250" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label>Date</label>
+      <input type="date" id="expDirectDate" value="${todayStr()}">
+    </div>
+    <div class="field">
+      <label>What was it for? (optional)</label>
+      <input type="text" id="expDirectNote" placeholder="e.g. Groceries, lunch, snacks">
+    </div>
+    <div class="row-btns">
+      <button class="btn cancel" onclick="closeOverlay()">Cancel</button>
+      <button class="btn primary" style="background:var(--deficit)" onclick="saveExpenseDirect()">Save expense</button>
+    </div>
+  `);
+}
+
+async function saveExpenseDirect(){
+  const amt = parseFloat(document.getElementById("expDirectAmt").value);
+  const date = document.getElementById("expDirectDate").value || todayStr();
+  const note = document.getElementById("expDirectNote").value.trim();
+  if(!amt || amt<=0){ alert("Enter an amount greater than 0."); return; }
+  ledger.expenses.push({ id: Date.now().toString(), amount: amt, date, note });
+  await saveLedger();
+  closeOverlay();
+  render();
+}
+
+function openBackup(){
+  const {totalDeposit, totalSpent} = totals();
+  openOverlay(`
+    <div class="sheet-title">Backup &amp; Restore</div>
+    <div class="sheet-date">${ledger.deposits.length} deposits · ${ledger.expenses.length} expenses saved</div>
+    <div class="field">
+      <label>Save a copy</label>
+      <button class="btn primary" style="width:100%; margin-bottom:4px;" onclick="exportData()">Download backup file</button>
+    </div>
+    <div class="field">
+      <label>Restore from a backup file</label>
+      <input type="file" id="importFile" accept="application/json" style="padding:9px 8px;">
+      <button class="btn primary" style="width:100%; margin-top:8px; background:var(--gold);" onclick="importData()">Restore from file</button>
+    </div>
+    <div class="row-btns">
+      <button class="btn cancel" style="width:100%;" onclick="closeOverlay()">Close</button>
+    </div>
+  `);
+}
+
+function exportData(){
+  const dataStr = JSON.stringify(ledger, null, 2);
+  const blob = new Blob([dataStr], {type: "application/json"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const stamp = todayStr();
+  a.href = url;
+  a.download = `food-ledger-backup-${stamp}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+async function importData(){
+  const fileInput = document.getElementById("importFile");
+  const file = fileInput.files[0];
+  if(!file){ alert("Choose a backup file first."); return; }
+  try{
+    const text = await file.text();
+    const parsed = JSON.parse(text);
+    if(!parsed.deposits || !parsed.expenses){ throw new Error("Invalid file"); }
+    const merge = confirm("Tap OK to merge this backup with your current data, or Cancel to replace your current data entirely with the backup.");
+    if(merge){
+      const existingIds = new Set([...ledger.deposits.map(d=>d.id), ...ledger.expenses.map(e=>e.id)]);
+      parsed.deposits.forEach(d=>{ if(!existingIds.has(d.id)) ledger.deposits.push(d); });
+      parsed.expenses.forEach(e=>{ if(!existingIds.has(e.id)) ledger.expenses.push(e); });
+    } else {
+      ledger = { deposits: parsed.deposits, expenses: parsed.expenses };
+    }
+    await saveLedger();
+    closeOverlay();
+    render();
+    alert("Backup restored successfully.");
+  }catch(e){
+    alert("That file couldn't be read. Make sure it's a backup exported from this app.");
+  }
+}
+
+function openDay(key){
+  const dayExpenses = ledger.expenses.filter(e=>e.date===key);
+  const spend = dayExpenses.reduce((s,e)=>s+e.amount,0);
+  const dateObj = new Date(key+"T00:00:00");
+  const niceDate = dateObj.toLocaleDateString('en-IN', {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+
+  const list = dayExpenses.length ? dayExpenses.map(e=>`
+    <div class="entry">
+      <div class="entry-note">${e.note || "Food expense"}<small>${e.id===dayExpenses[0].id?"":""}</small></div>
+      <div style="display:flex;align-items:center;">
+        <span class="entry-amt">-${fmt(e.amount)}</span>
+        <button class="entry-del" onclick="deleteExpense('${e.id}','${key}')">✕</button>
+      </div>
+    </div>
+  `).join("") : `<div class="empty-msg">No expenses logged for this day yet.</div>`;
+
+  openOverlay(`
+    <div class="sheet-title">${niceDate}</div>
+    <div class="sheet-date">Spent so far: ${fmt(spend)}</div>
+    <div class="field">
+      <label>Amount</label>
+      <input type="number" id="expAmt" placeholder="e.g. 250" inputmode="decimal">
+    </div>
+    <div class="field">
+      <label>What was it for?</label>
+      <input type="text" id="expNote" placeholder="e.g. Groceries, lunch, snacks">
+    </div>
+    <div class="row-btns">
+      <button class="btn cancel" onclick="closeOverlay()">Close</button>
+      <button class="btn primary" onclick="saveExpense('${key}')">Add expense</button>
+    </div>
+    <div class="entry-list">${list}</div>
+  `);
+}
+
+async function saveExpense(key){
+  const amt = parseFloat(document.getElementById("expAmt").value);
+  const note = document.getElementById("expNote").value.trim();
+  if(!amt || amt<=0){ alert("Enter an amount greater than 0."); return; }
+  ledger.expenses.push({ id: Date.now().toString(), amount: amt, date: key, note });
+  await saveLedger();
+  openDay(key);
+  render();
+}
+
+async function deleteExpense(id, key){
+  ledger.expenses = ledger.expenses.filter(e=>e.id!==id);
+  await saveLedger();
+  openDay(key);
+  render();
+}
+
+function confirmReset(){
+  openOverlay(`
+    <div class="sheet-title">Reset everything?</div>
+    <div class="sheet-date">This clears all deposits and expenses. This can't be undone.</div>
+    <div class="row-btns">
+      <button class="btn cancel" onclick="closeOverlay()">Cancel</button>
+      <button class="btn primary" style="background:var(--deficit)" onclick="doReset()">Reset all data</button>
+    </div>
+  `);
+}
+async function doReset(){
+  ledger = { deposits: [], expenses: [] };
+  await saveLedger();
+  closeOverlay();
+  render();
+}
+
+document.getElementById("overlay").addEventListener("click", (e)=>{
+  if(e.target.id==="overlay") closeOverlay();
+});
+
+(async function init(){
+  await loadLedger();
+  render();
+})();
+</script>
+</body>
+</html>
